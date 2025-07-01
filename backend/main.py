@@ -12,9 +12,15 @@ load_dotenv()
 AZURE_OPENAI_KEY = os.environ.get("AZURE_OPENAI_KEY")
 AZURE_OPENAI_DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT")
 
-# Health-check: If not found, crash early!
-assert AZURE_OPENAI_KEY, "AZURE_OPENAI_KEY not set"
-assert AZURE_OPENAI_DEPLOYMENT, "AZURE_OPENAI_DEPLOYMENT not set"
+# Health-check: If not found, crash early (except in CI/test environments)
+CI_ENVIRONMENT = os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS")
+if not CI_ENVIRONMENT:
+    assert AZURE_OPENAI_KEY, "AZURE_OPENAI_KEY not set"
+    assert AZURE_OPENAI_DEPLOYMENT, "AZURE_OPENAI_DEPLOYMENT not set"
+else:
+    # In CI environment, use dummy values for testing
+    AZURE_OPENAI_KEY = AZURE_OPENAI_KEY or "dummy-key-for-ci"
+    AZURE_OPENAI_DEPLOYMENT = AZURE_OPENAI_DEPLOYMENT or "gpt-4o"
 
 # print(f"KEY LOADED: {AZURE_OPENAI_KEY[:4]}... DEPLOYMENT: {AZURE_OPENAI_DEPLOYMENT}")
 

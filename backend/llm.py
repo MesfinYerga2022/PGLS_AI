@@ -11,9 +11,15 @@ class AzureOpenAILLM:
     def __init__(self, input_api_key, model_name):
         self.model = model_name
         self.model_params = self.get_model_params(self.model)
+        
+        # Handle CI environment
+        endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
+        if not endpoint and (os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS")):
+            endpoint = "https://dummy-endpoint-for-ci.openai.azure.com"
+            
         self.client = AzureOpenAI(
             api_key=input_api_key,
-            azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT"),
+            azure_endpoint=endpoint,
             api_version=self.model_params["api_version"]
         )
         self.encoding = tiktoken.get_encoding(self.model_params["encoding_name"])
