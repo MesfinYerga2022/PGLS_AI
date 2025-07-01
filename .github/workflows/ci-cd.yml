@@ -1,0 +1,199 @@
+name: PGLS AI Platform CI/CD
+
+on:
+  push:
+    branches: [main, develop, staging]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.9'
+
+jobs:
+  # Frontend Tests and Build
+  frontend:
+    name: Frontend CI/CD
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run ESLint
+      run: npm run lint
+
+    - name: Run tests
+      run: npm test -- --coverage --watchAll=false
+
+    - name: Build application
+      run: npm run build
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: frontend-build
+        path: dist/
+
+  # Backend Tests and Validation
+  backend:
+    name: Backend CI/CD
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run tests
+      run: |
+        cd backend
+        python -m pytest test_api.py -v
+
+    - name: Test API endpoints
+      run: |
+        cd backend
+        python test_api.py
+
+  # Security and Quality Checks
+  security:
+    name: Security & Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+
+    - name: Setup Node.js for security audit
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Run npm audit
+      run: npm audit --audit-level=moderate
+
+  # Deploy to Development (develop branch)
+  deploy-dev:
+    name: Deploy to Development
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment: development
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: frontend-build
+        path: dist/
+
+    - name: Deploy to Development Environment
+      run: |
+        echo "🚀 Deploying to Development Environment"
+        # Add your deployment commands here
+        # Example: Deploy to development server, update containers, etc.
+
+  # Deploy to Staging (staging branch)
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [frontend, backend, security]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/staging'
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: frontend-build
+        path: dist/
+
+    - name: Deploy to Staging Environment
+      run: |
+        echo "🚀 Deploying to Staging Environment"
+        # Add your staging deployment commands here
+
+  # Deploy to Production (main branch)
+  deploy-prod:
+    name: Deploy to Production
+    needs: [frontend, backend, security]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: frontend-build
+        path: dist/
+
+    - name: Deploy to Production Environment
+      run: |
+        echo "🚀 Deploying to Production Environment"
+        # Add your production deployment commands here
+
+    - name: Create GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+
+  # Notification on completion
+  notify:
+    name: Notify Team
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Notify Success
+      if: needs.frontend.result == 'success' && needs.backend.result == 'success'
+      run: |
+        echo "✅ All checks passed! Ready for deployment."
+        # Add notification logic (Slack, Teams, Email, etc.)
+
+    - name: Notify Failure
+      if: needs.frontend.result == 'failure' || needs.backend.result == 'failure'
+      run: |
+        echo "❌ Some checks failed. Please review the logs."
+        # Add failure notification logic
